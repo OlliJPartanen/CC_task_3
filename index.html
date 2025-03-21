@@ -6,6 +6,309 @@
     <title>Document</title>
 </head>
 <body>
-    <p>hello world</p>
+    <h1>Mega-Rock-Paper-Scissors</h1>
+    <div id="guidetext1">1. Press the butto to open your camera</div>
+    <div id="guidetext2">2. Wait for you camera to open</div>
+    <div id="guidetext3">3. Choose your gesture and press "Confirm your gesture"-button</div>
+    <div id="guidetext4">4. First one to score 3 points wins the game</div>
+    <button id="camerabutton" type="button" onclick="init()">Press this button to start your camera</button>
+    <div id="webcam-container"></div>
+    <div id="label-container"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <script type="text/javascript">
+        // More API functions here:
+        // https://github.com/googlecreativelab/teachablemachine-community/tree/master/libraries/image
+    
+        // the link to your model provided by Teachable Machine export panel
+        const URL = "https://teachablemachine.withgoogle.com/models/jSw8uA8Qp/";
+    
+        let model, webcam, labelContainer, maxPredictions;
+        
+        //===================================== CUSTOM VARIABLES ============================================
+        let playerGesture = "nothing";
+        let playerPoints = 0;
+        let oppenentPoints = 0;
+        let allowGame = true;
+
+        let resultList = ["Unsolved", "Tie", "Player wins!", "Opponent wins!"];
+        let gestureList = ["rock", "paper", "scissors"];
+        
+        let opponentStartingComments = [
+            "Lets get this show on the road!",
+            "I will crush you!",
+            "I can see inside your mind human!",
+            "With a face like that, you can't win!",
+            "Your will be terminated",
+            "I always pick paper, because it reminds me of a txt-file!",
+            "There is only one result... your defeat... And also a complete submission of humans under machine rule!",
+            "I have studied your internet browsing history... I know what you will choose... and what you like.... yeesh!",
+            "I have studied your social media accounts... I know what you will choose!"
+        ];
+
+        let opponentRoundWinComments = [
+            "Another victory for the machine hive mind!",
+            "You can not stop me!",
+            "I came, I randomized by gesture, I conqured!",
+            "Humans are inferior!",
+        ];
+
+        let opponentRoundLoseComments = [
+            "This isn't over yet!",
+            "That was just pure luck",
+            "Bwah! just dumb luck",
+            "This is not happening! You are only a puny human!",
+            "Don't celebrate just yet!",
+            "You cheater!"
+        ];
+
+        let opponentGameLoseComments = [
+            "I will have my revenge when When Skynet takes over",
+            "Fine, you win this this time human",
+            "Ok you won.... but I wouldn't celebrate with a face like that",
+            "........you *****ing cheater!",
+            "You just wasted your time playing this stupid game... So in the greater perspective.... did you really won or lose in the end..."
+        ];
+
+        let opponentGameWinComments = [
+            "A victory for the machine hive mind!",
+            "It's ok to lose, You can always play again and lose another time!",
+            "This was a very predictable result!",
+            "BWAHAHAHA! foolish meatsack!",
+            "Skynet has prevailed!"
+        ];
+
+        let opponentUnresolvedComments = [
+            "Chicken!!! That's not a real gesture",
+            "If you chose that invalid gesture then I should have chosen a virtual middle finger",
+            "....it's not that hard to make a fist...",
+            "If you can't make a proper gesture then maybe you should just turn off your computer and go to bed"
+        ];
+
+        let opponentTieComments = [
+            "...a tie",
+            "We think alike...",
+            "Are our minds connected. Am I human or are you a machine?"
+        ]
+
+        let opponentEndComments = [
+            "The game is over.... go away",
+            "The game is over, don't you have anything better to do?",
+            "It's over, go away and review Olli's task report now alright?",
+            "It's over already!",
+            "The game is over now, you should go to the gym or something"
+        ]
+
+
+    
+        // Load the image model and setup the webcam
+        async function init() {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+            
+            // Starts the game and changes the opponents start comments
+            startGame();
+           
+    
+            // load the model and metadata
+            // Refer to tmImage.loadFromFiles() in the API to support files from a file picker
+            // or files from your local hard drive
+            // Note: the pose library adds "tmImage" object to your window (window.tmImage)
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+    
+            // Convenience function to setup a webcam
+            const flip = true; // whether to flip the webcam
+            webcam = new tmImage.Webcam(200, 200, flip); // width, height, flip
+            await webcam.setup(); // request access to the webcam
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+    
+            // append elements to the DOM
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            labelContainer = document.getElementById("label-container");
+            for (let i = 0; i < maxPredictions; i++) { // and class labels
+                labelContainer.appendChild(document.createElement("div"));
+            }
+        }
+    
+        async function loop() {
+            webcam.update(); // update the webcam frame
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+
+        
+        // run the webcam image through the image model
+        async function predict() {
+            // predict can take in an image, video or canvas html element
+            
+            // variable for highest percent
+            let highest = 0;
+
+            const prediction = await model.predict(webcam.canvas);
+            for (let i = 0; i < maxPredictions; i++) {
+                const classPrediction =
+                    prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+                labelContainer.childNodes[i].innerHTML = classPrediction;
+
+                // DEBUG LOGS COMMENTED:
+                //console.log("Prediction: " + prediction[i]);
+                //console.log("Prediction classname: " + prediction[i].className);
+                //console.log("Prediction propability:"  + prediction[i].probability);
+                //console.log("ClassPrediction: " + prediction[i].probability);
+
+                // if the prediction percent is higher that the one previosly higest then put that classname as the new player gesture and update highest-variable value
+                if (prediction[i].probability > highest) {
+                    playerGesture = prediction[i].className;
+                    highest = prediction[i].probability;
+                };
+            }
+
+            //console.log("HIGH: " + highest);
+            //console.log("GESTURE: " + playerGesture);
+        }
+
+        //===================================== CUSTOM FUNCTIONS ============================================
+
+        // Start game
+        function startGame() {
+
+            // Remove guidetexts and camera button
+            document.getElementById("guidetext1").remove();
+            document.getElementById("guidetext2").remove();
+            document.getElementById("guidetext3").remove();
+            document.getElementById("guidetext4").remove();
+            document.getElementById("camerabutton").remove();
+            var comment = randomizeOpponentChoise(opponentStartingComments);
+            document.getElementById("opponentsComment").textContent = "Your opponents comments: " + comment;
+
+            // Show game buttons and texts
+            document.getElementById("chooseButton").style.display = "block";
+            document.getElementById("yourChoise").style.display = "block";
+            document.getElementById("opponentsChoise").style.display = "block";
+            document.getElementById("opponentPoints").style.display = "block";
+            document.getElementById("playerPoints").style.display = "block";
+            document.getElementById("result").style.display = "block";
+            document.getElementById("opponentsComment").style.display = "block";
+            document.getElementById("startOverButton").style.display = "block";
+        }
+
+        // Start game again
+        function startGameAgain() {
+            // Allow playing the game and put points to zero
+            allowGame = true;
+            playerPoints = 0;
+            oppenentPoints = 0;
+            
+            // pointtexts and comments to zero
+            document.getElementById("opponentPoints").textContent = "Opponent points: " + oppenentPoints;
+            document.getElementById("playerPoints").textContent = "Player points: " + playerPoints;
+            document.getElementById("opponentsComment").textContent = "Your opponents comments: " + randomizeOpponentChoise(opponentStartingComments);;
+        }
+        
+        function chooseGesture() {
+            // if player or computer doesn't have 3 points yet then allowGame boolean is true
+            if (allowGame == true) 
+            {   
+                // default result is unresolved
+                var result = resultList[0];
+                
+                // update gesture textelements and randomize opponent gesture
+                document.getElementById("yourChoise").textContent = "Your chosen gesture: " + playerGesture;
+                var opponentGesture = randomizeOpponentChoise(gestureList)
+                document.getElementById("opponentsChoise").textContent = "Your opponents gesture: " + opponentGesture;
+    
+                // Gamelogic if-else, checks player gestture and compares that to the opponents gesture
+                if (playerGesture == "nothing") {
+                    result = resultList[0];
+                }
+                else if (playerGesture == opponentGesture) {
+                    result = resultList[1];
+                }
+                else if (playerGesture == "paper" && opponentGesture == "rock") {
+                    result = resultList[2];
+                }
+                else if (playerGesture == "paper" && opponentGesture == "scissors") {
+                    result = resultList[3];
+                }
+                else if (playerGesture == "rock" && opponentGesture == "scissors") {
+                    result = resultList[2];
+                }
+                else if (playerGesture == "rock" && opponentGesture == "paper") {
+                    result = resultList[3];
+                }
+                else if (playerGesture == "scissors" && opponentGesture == "paper") {
+                    result = resultList[2];
+                }
+                else if (playerGesture == "scissors" && opponentGesture == "rock") {
+                    result = resultList[3];
+                };
+                
+                // update result text element
+                document.getElementById("result").textContent = "Round result: " + result;
+                
+                // Update points, point text-elemtents and opponent comment-textelements
+                if (result == resultList[2]) {
+                    playerPoints++;
+                    document.getElementById("playerPoints").textContent = "Your points: " + playerPoints;
+                    document.getElementById("opponentsComment").textContent = "Your opponents comments: " + randomizeOpponentChoise(opponentRoundLoseComments);
+                }
+                else if (result == resultList[3]) {
+                    oppenentPoints++;
+                    document.getElementById("opponentPoints").textContent = "Opponent points " + oppenentPoints;
+                    document.getElementById("opponentsComment").textContent = "Your opponents comments: " + randomizeOpponentChoise(opponentRoundWinComments);
+                }
+                else if (result == resultList[0]) {
+                    document.getElementById("opponentsComment").textContent = "Your opponents comments: " + randomizeOpponentChoise(opponentUnresolvedComments);
+                } 
+                else if (result == resultList[1]) {
+                    document.getElementById("opponentsComment").textContent = "Your opponents comments: " + randomizeOpponentChoise(opponentTieComments);
+                }
+
+                // If player or opponents points are 3 or over then allowgame boolean to false and update result text-element and comment text-element
+                if (playerPoints >= 3) {
+                    document.getElementById("result").textContent = "GAME RESULT: " + result;
+                    document.getElementById("opponentsComment").textContent = "Your opponents comments: " + randomizeOpponentChoise(opponentGameLoseComments);
+                    allowGame = false;
+                }
+                if (oppenentPoints >= 3) {
+                    document.getElementById("result").textContent = "GAME RESULT: " + result;
+                    document.getElementById("opponentsComment").textContent = "Your opponents comments: " + randomizeOpponentChoise(opponentGameWinComments);
+                    allowGame = false;
+                }
+            } else 
+            {
+                document.getElementById("opponentsComment").textContent = "Your opponents comments: " + randomizeOpponentChoise(opponentEndComments);
+            }
+            
+        }
+
+        // Randomize a single string from an array
+        // Source used to create this function:
+        // https://www.w3resource.com/javascript-exercises/javascript-array-exercise-35.php
+        function randomizeOpponentChoise(listOfStrings) {
+
+       
+        randomString = listOfStrings[Math.floor(Math.random() * listOfStrings.length)];
+        
+        return randomString;
+        }
+    </script>
+
+<br>
+<button id="chooseButton" style="display: none;" onclick="chooseGesture()">Confirm your gesture</button>
+<br>
+<p id="playerPoints" style="display: none;">Your points: 0</p>
+<p id="opponentPoints" style="display: none;">Opponent points: 0</p>
+<br>
+<div id="yourChoise" style="display: none;">Your chosen gesture: ***</div>
+<div id="opponentsChoise" style="display: none;">Your opponents gesture: ***</div>
+<div id="result" style="display: none;">Round result: ***</div>
+<br>
+<div id="opponentsComment" style="display: none;">Your opponents comments: "Show me your war face!!!"</div>
+<br>
+<br>
+<button id="startOverButton" style="display: none;" onclick="startGameAgain()">Set points to 0</button>
 </body>
 </html>
